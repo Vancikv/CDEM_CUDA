@@ -21,6 +21,6 @@ public:
 	Eigen::Vector2d get_contact_force(int node_id);
 	// Solve the system using the dynamic relaxation method.
 	void solve(double t_load, double t_max, int maxiter);
-	void solve(double t_load, double t_max, int maxiter, std::string outfile, int output_frequency=1);
+	void solve(double t_load, double t_max, int maxiter, char * outfile, int output_frequency=1);
 };
 

@@ -1,10 +1,12 @@
 #include "cuda_functions.cuh"
 #include "aux_functions.h"
+#include <fstream>
+#include <istream>
 
 cudaError_t element_step_with_CUDA(double * u, double * v, double * a,
 	double * load, double * supports, int * neighbors, double * n_vects, double * K, double * C, double * Mi,
 	double * Kc, int n_els, int n_nds, int n_nodedofs, int stiffdim, 
-	double t_load, double t_max, int maxiter)
+	double t_load, double t_max, int maxiter,char * outfile, int output_frequency)
 {
 	// Declare device vars
 	double * dev_u, *dev_v, *dev_a, *dev_load, *dev_supports, * dev_n_vects, *dev_K, *dev_C, *dev_Mi,
@@ -119,9 +121,10 @@ cudaError_t element_step_with_CUDA(double * u, double * v, double * a,
 	dim3 dimBlock(threads_per_block);
 	dim3 dimGrid(nblocks);
 
-	for (int i = 0; i < maxiter; i++)
+	int i, j;
+	for (i = 0; i < maxiter; i++)
 	{
-		for (int j = 0; j < n_nds*n_nodedofs; j++)
+		for (j = 0; j < n_nds*n_nodedofs; j++)
 		{
 			u[j] += dt*v[j] + 0.5*dt*dt*a[j];
 			v[j] += dt*a[j];
@@ -176,6 +179,20 @@ cudaError_t element_step_with_CUDA(double * u, double * v, double * a,
 			fprintf(stderr, "cudaMemcpy failed!");
 			goto Error;
 		}
+
+		if ((i%output_frequency) == 0)
+		{
+			char fn[100];
+			sprintf(fn,"%s%d.txt",outfile, i);
+			std::ofstream f(fn);
+
+			f << n_nds << " " << n_els << " " << i*dt << std::endl;
+			for (j = 0; j < n_nds; j++)
+			{
+				f << "node " << (i + 1) << " x y " << u[2 * j] << " " << u[2*j+1]
+					<< " " << v[2 * j] << " " << v[2 * j + 1] << " " << a[2 * j] << " " << a[2 * j + 1] << std::endl;
+			}
+		}
 	}
 Error:
 	cudaFree(dev_u);
@@ -200,9 +217,14 @@ __global__ void element_step_kernel(double * u, double * v, double * a, double *
 	if (tid < n_nds*n_nodedofs)
 	{
 		int eid = tid / stiffdim; // global number of element
+		int nid = (tid / n_nodedofs) * n_nodedofs; // number of dof 1 of this node
 		int ned = tid % stiffdim; // number of dof within element
 		int mdim = stiffdim*stiffdim; // number of elements of the stiffness matrix
 		int i;
+		double kc11 = Kc[0];
+		double kc21 = Kc[1];
+		double kc12 = Kc[2];
+		double kc22 = Kc[3];
 
 		// Element stiffness force:
 		double F_k_e = 0;
@@ -212,6 +234,27 @@ __global__ void element_step_kernel(double * u, double * v, double * a, double *
 		}
 		// Contact stiffness force:
 		double F_k_c = 0;
+		for (i = 0; i < 2; i++)
+		{
+			int nbr = neighbors[nid + i];
+			if (nbr != 0)
+			{
+				double t11 = n_vects[4*(tid/n_nodedofs)+2*i];
+				double t12 = n_vects[4 * (tid / n_nodedofs) + 2 * i+1];
+				double t21 = -t12;
+				double t22 = t11;
+				double du_x = u[(nbr - 1)*n_nodedofs] - u[nid];
+				double du_y= u[(nbr - 1)*n_nodedofs+1] - u[nid+1];
+				if (tid == nid) // X-component
+				{
+					F_k_c += du_x * (t11*(t11*kc11 + t21*kc21) + t21*(t11*kc12 + t21*kc22)) + du_y * (t12*(t11*kc11 + t21*kc21) + t22*(t11*kc12 + t21*kc22)); // T_T * Kc * T * du_g
+				}
+				else // Y-component
+				{
+					F_k_c += du_x * (t11*(t12*kc11 + t22*kc21) + t21*(t12*kc12 + t22*kc22)) + du_y * (t12*(t12*kc11 + t22*kc21) + t22*(t12*kc12 + t22*kc22)); // T_T * Kc * T * du_g
+				}
+			}
+		}
 		// Damping force:
 		double F_c = -C[tid] * v[tid];
 		// Reaction force

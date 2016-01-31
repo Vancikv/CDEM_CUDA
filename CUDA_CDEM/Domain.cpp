@@ -138,8 +138,8 @@ void Domain::solve(double t_load, double t_max, int maxiter)
 
 	Eigen::Map<Eigen::MatrixXd>(Kc, m_contact_stiffness.rows(), m_contact_stiffness.cols()) = m_contact_stiffness;
 
-	element_step_with_CUDA(u, v, a, load, supports, neighbors, n_vects, K, C, Mi, Kc, nelems, nnodes, nnodedofs, 
-			stiffdim,t_load,t_max,maxiter);
+	//element_step_with_CUDA(u, v, a, load, supports, neighbors, n_vects, K, C, Mi, Kc, nelems, nnodes, nnodedofs, 
+	//		stiffdim,t_load,t_max,maxiter);
 	std::cout << "Deflection of the 59th node: " << u[117] << std::endl;
 		//for (j = 0; j < nelems; j++)
 		//{
@@ -147,9 +147,9 @@ void Domain::solve(double t_load, double t_max, int maxiter)
 		//}
 }
 
-void Domain::solve(double t_load, double t_max, int maxiter, std::string outfile, int output_frequency)
+void Domain::solve(double t_load, double t_max, int maxiter, char* outfile, int output_frequency)
 {
-	double dt = t_max / maxiter;
+	float dt = t_max / maxiter;
 	int i, j;
 	for (i = 0; i < nelems; i++)
 	{
@@ -157,20 +157,68 @@ void Domain::solve(double t_load, double t_max, int maxiter, std::string outfile
 		elements[i].calc_normal_vectors();
 		for (j = 0; j < elements[i].nnodes; j++)
 		{
-			nodes[elements[i].nodes[j] - 1].init_vals(dt, elements[i].M_loc(2 * j, 2 * j));
+			nodes[elements[i].nodes[j] - 1].init_vals(dt / t_max, elements[i].M_loc(2 * j, 2 * j));
 		}
 	}
 
-	for (i = 1; i <= maxiter+1; i++)
+	// Eigen matrices will be copied into arrays of doubles.
+	// Using the Eigen::Map function defaults in a column by column layout.
+	double * u, *v, *a, *load, *supports, *K, *C, *Mi, *Kc, *n_vects;
+	int * neighbors;
+	int nnodedofs = 2, stiffdim = 8;
+	int vdim = nnodes*nnodedofs;
+	u = new double[vdim];
+	v = new double[vdim];
+	a = new double[vdim];
+	load = new double[vdim];
+	supports = new double[vdim];
+	K = new double[nelems*stiffdim*stiffdim];
+	C = new double[nelems*stiffdim];
+	Mi = new double[nelems*stiffdim];
+	Kc = new double[4];
+	n_vects = new double[4 * nnodes];
+	neighbors = new int[vdim];
+
+	for (i = 0; i < nnodes; i++)
 	{
-		for (j = 0; j < nelems; j++)
-		{
-			elements[j].iterate(dt, i * dt / t_load);
-		}
-		std::string num = std::to_string(i);
-		num = num + ".txt";
-		if (i % output_frequency == 0) write_state_to_file(outfile+num, i * dt);
+		int of = i*nnodedofs;
+		Eigen::Map<Eigen::VectorXd>(u + of, nodes[i].v_disp.rows(), nodes[i].v_disp.cols()) = nodes[i].v_disp;
+		Eigen::Map<Eigen::VectorXd>(v + of, nodes[i].v_velo.rows(), nodes[i].v_velo.cols()) = nodes[i].v_velo;
+		Eigen::Map<Eigen::VectorXd>(a + of, nodes[i].v_acce.rows(), nodes[i].v_acce.cols()) = nodes[i].v_acce;
+		Eigen::Map<Eigen::VectorXd>(load + of, nodes[i].v_load.rows(), nodes[i].v_load.cols()) = nodes[i].v_load;
+		*(supports++) = nodes[i].supports[0];
+		*(supports++) = nodes[i].supports[1];
+		*(neighbors++) = nodes[i].neighbors[0];
+		*(neighbors++) = nodes[i].neighbors[1];
+		*(n_vects++) = nodes[i].v_norm[0](0);
+		*(n_vects++) = nodes[i].v_norm[0](1);
+		*(n_vects++) = nodes[i].v_norm[1](0);
+		*(n_vects++) = nodes[i].v_norm[1](1);
+
 	}
+
+	supports -= vdim;
+	neighbors -= vdim;
+	n_vects -= 4 * nnodes;
+
+	for (i = 0; i < nelems; i++)
+	{
+		int of1 = i*stiffdim*stiffdim, of2 = i*stiffdim;
+		Eigen::Map<Eigen::MatrixXd>(K + of1, elements[i].K_loc.rows(), elements[i].K_loc.cols()) = elements[i].K_loc;
+		Eigen::Map<Eigen::MatrixXd>(C + of2, elements[i].C_loc.diagonal().rows(), elements[i].C_loc.diagonal().cols()) = elements[i].C_loc.diagonal();
+		Eigen::Map<Eigen::MatrixXd>(Mi + of2, elements[i].M_loc_inv.diagonal().rows(), elements[i].M_loc_inv.diagonal().cols()) = elements[i].M_loc_inv.diagonal();
+	}
+
+	Eigen::Map<Eigen::MatrixXd>(Kc, m_contact_stiffness.rows(), m_contact_stiffness.cols()) = m_contact_stiffness;
+	std::string num = "00.txt", fl=outfile;
+	write_state_to_file(fl + num, 0);
+	element_step_with_CUDA(u, v, a, load, supports, neighbors, n_vects, K, C, Mi, Kc, nelems, nnodes, nnodedofs,
+		stiffdim, t_load, t_max, maxiter, outfile, output_frequency);
+	std::cout << "Deflection of the 59th node: " << u[117] << std::endl;
+	//for (j = 0; j < nelems; j++)
+	//{
+	//	elements[j].iterate(dt, i * dt / t_load, true);
+	//}
 }
 
 void Domain::load_from_file(std::string filename)
