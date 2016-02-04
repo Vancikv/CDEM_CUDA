@@ -122,7 +122,7 @@ cudaError_t element_step_with_CUDA(double * u, double * v, double * a,
 	dim3 dimGrid(nblocks);
 
 	int i, j;
-	for (i = 0; i < maxiter; i++)
+	for (i = 1; i <= maxiter; i++)
 	{
 		for (j = 0; j < n_nds*n_nodedofs; j++)
 		{
@@ -186,10 +186,10 @@ cudaError_t element_step_with_CUDA(double * u, double * v, double * a,
 			sprintf(fn,"%s%d.txt",outfile, i);
 			std::ofstream f(fn);
 
-			f << n_nds << " " << n_els << " " << i*dt << std::endl;
+			f << n_nds << " " << n_els << " " << i*dt << " " << load_function(dt*i / t_load) << std::endl;
 			for (j = 0; j < n_nds; j++)
 			{
-				f << "node " << (i + 1) << " x y " << u[2 * j] << " " << u[2*j+1]
+				f << "node " << (j + 1) << " x y " << u[2 * j] << " " << u[2*j+1]
 					<< " " << v[2 * j] << " " << v[2 * j + 1] << " " << a[2 * j] << " " << a[2 * j + 1] << std::endl;
 			}
 		}
