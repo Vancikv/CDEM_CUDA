@@ -3,6 +3,20 @@
 #include <fstream>
 #include <istream>
 
+float *copy2cpu(float *d_u, int dim){
+	cudaError_t cudaStatus;
+	float *h_u;
+	h_u = new float[dim];
+
+	// Copy output vector from gpu buffer to host memory.
+	cudaStatus = cudaMemcpy(h_u, d_u, dim * sizeof(float), cudaMemcpyDeviceToHost);
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaMemcpy failed!\n");
+		free(h_u);
+	}
+	return h_u;
+}
+
 cudaError_t element_step_with_CUDA(double * u, double * v, double * a,
 	double * load, double * supports, int * neighbors, double * n_vects, double * K, double * C, double * Mi,
 	double * Kc, int n_els, int n_nds, int n_nodedofs, int stiffdim, 
@@ -12,7 +26,12 @@ cudaError_t element_step_with_CUDA(double * u, double * v, double * a,
 	double * dev_u, *dev_v, *dev_a, *dev_load, *dev_supports, * dev_n_vects, *dev_K, *dev_C, *dev_Mi,
 	* dev_Kc;
 	int * dev_neighbors;
-	float dt = t_max / maxiter;
+	double dt = t_max / maxiter;
+	cudaEvent_t start, stop;
+	cudaEventCreate(&start);
+	cudaEventCreate(&stop);
+	cudaEventRecord(start, 0);
+
 
 	cudaError_t cudaStatus;
 	// Choose which GPU to run on, change this on a multi-GPU system.
@@ -21,12 +40,14 @@ cudaError_t element_step_with_CUDA(double * u, double * v, double * a,
 		fprintf(stderr, "cudaSetDevice failed!  Do you have a CUDA-capable GPU installed?");
 		goto Error;
 	}
-	// Allocate GPU buffers.
-	cudaStatus = cudaMalloc((void**)&dev_u, 2*n_nds * sizeof(double));
-	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "cudaMalloc failed!");
-		goto Error;
-	}
+	//Allocate GPU buffers.
+	//cudaStatus = cudaMalloc((void**)&dev_u, 2*n_nds * sizeof(double));
+	//if (cudaStatus != cudaSuccess) {
+	//	fprintf(stderr, "cudaMalloc failed!");
+	//	goto Error;
+	//}
+	dev_u = copy2gpu<double>(u, 2 * n_nds);
+
 	cudaStatus = cudaMalloc((void**)&dev_v, 2 * n_nds * sizeof(double));
 	if (cudaStatus != cudaSuccess) {
 		fprintf(stderr, "cudaMalloc failed!");
@@ -78,7 +99,7 @@ cudaError_t element_step_with_CUDA(double * u, double * v, double * a,
 		goto Error;
 	}
 
-	// Copy input vectors from host memory to GPU buffers.
+	//Copy input vectors from host memory to GPU buffers.
 	cudaStatus = cudaMemcpy(dev_supports, supports, 2 * n_nds * sizeof(double), cudaMemcpyHostToDevice);
 	if (cudaStatus != cudaSuccess) {
 		fprintf(stderr, "cudaMemcpy failed!");
@@ -89,7 +110,12 @@ cudaError_t element_step_with_CUDA(double * u, double * v, double * a,
 		fprintf(stderr, "cudaMemcpy failed!");
 		goto Error;
 	}
-	cudaStatus = cudaMemcpy(dev_n_vects, n_vects, 4* n_nds * sizeof(double), cudaMemcpyHostToDevice);
+	cudaStatus = cudaMemcpy(dev_load, load, 2 * n_nds * sizeof(double), cudaMemcpyHostToDevice);
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaMemcpy failed!");
+		goto Error;
+	}
+	cudaStatus = cudaMemcpy(dev_n_vects, n_vects, 4 * n_nds * sizeof(double), cudaMemcpyHostToDevice);
 	if (cudaStatus != cudaSuccess) {
 		fprintf(stderr, "cudaMemcpy failed!");
 		goto Error;
@@ -118,17 +144,102 @@ cudaError_t element_step_with_CUDA(double * u, double * v, double * a,
 	int warps_per_block = 4;
 	int threads_per_block = 32*warps_per_block;
 	int nblocks = ((n_nds*n_nodedofs) / threads_per_block) + 1;
-	dim3 dimBlock(threads_per_block);
-	dim3 dimGrid(nblocks);
+	dim3 dimBlock(threads_per_block,1,1);
+	dim3 dimGrid(nblocks,1,1);
 
 	int i, j;
+	double * last_u, *last_v;
+	last_u = new double[n_nodedofs*n_nds];
+	last_v = new double[n_nodedofs*n_nds];
 	for (i = 1; i <= maxiter; i++)
 	{
 		for (j = 0; j < n_nds*n_nodedofs; j++)
 		{
+			last_u[j] = u[j];
 			u[j] += dt*v[j] + 0.5*dt*dt*a[j];
+			last_v[j] = v[j];
 			v[j] += dt*a[j];
 		}
+
+		if (i > 1) // Relaxation step
+		{
+			cudaStatus = cudaDeviceSynchronize();
+			if (cudaStatus != cudaSuccess) {
+				fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching element_step_kernel!\n", cudaStatus);
+				goto Error;
+			}
+
+			cudaStatus = cudaMemcpy(dev_u, u, 2 * n_nds * sizeof(double), cudaMemcpyHostToDevice);
+			if (cudaStatus != cudaSuccess) {
+				fprintf(stderr, "cudaMemcpy failed!");
+				goto Error;
+			}
+			cudaStatus = cudaMemcpy(dev_v, v, 2 * n_nds * sizeof(double), cudaMemcpyHostToDevice);
+			if (cudaStatus != cudaSuccess) {
+				fprintf(stderr, "cudaMemcpy failed!");
+				goto Error;
+			}
+			cudaStatus = cudaMemcpy(dev_a, a, 2 * n_nds * sizeof(double), cudaMemcpyHostToDevice);
+			if (cudaStatus != cudaSuccess) {
+				fprintf(stderr, "cudaMemcpy failed!");
+				goto Error;
+			}
+
+			// cudaDeviceSynchronize waits for the kernel to finish, and returns
+			// any errors encountered during the launch.
+			cudaStatus = cudaDeviceSynchronize();
+			if (cudaStatus != cudaSuccess) {
+				fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching element_step_kernel!\n", cudaStatus);
+				goto Error;
+			}
+
+			element_step_kernel << < dimGrid, dimBlock >> > (dev_u, dev_v, dev_a, dev_load, dev_supports, dev_neighbors,
+				dev_n_vects, dev_K, dev_C, dev_Mi, dev_Kc, n_els, n_nds, n_nodedofs, stiffdim, load_function(dt*i / t_load));
+
+			// Check for any errors launching the kernel
+			cudaStatus = cudaGetLastError();
+			if (cudaStatus != cudaSuccess) {
+				fprintf(stderr, "element_step_kernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
+				goto Error;
+			}
+
+			// cudaDeviceSynchronize waits for the kernel to finish, and returns
+			// any errors encountered during the launch.
+			cudaStatus = cudaDeviceSynchronize();
+			if (cudaStatus != cudaSuccess) {
+				fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching element_step_kernel!\n", cudaStatus);
+				goto Error;
+			}
+
+			// Copy output from GPU buffer to host memory.
+			cudaStatus = cudaMemcpy(a, dev_a, 2 * n_nds * sizeof(double), cudaMemcpyDeviceToHost);
+			if (cudaStatus != cudaSuccess) {
+				fprintf(stderr, "cudaMemcpy failed!");
+				goto Error;
+			}
+
+			// cudaDeviceSynchronize waits for the kernel to finish, and returns
+			// any errors encountered during the launch.
+			cudaStatus = cudaDeviceSynchronize();
+			if (cudaStatus != cudaSuccess) {
+				fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching element_step_kernel!\n", cudaStatus);
+				goto Error;
+			}
+			for (j = 0; j < n_nds*n_nodedofs; j++)
+			{
+				u[j] = last_u[j] + dt*last_v[j] + 0.5*dt*dt*a[j];
+				v[j] = last_v[j] + dt*a[j];
+			}
+
+		}
+		// cudaDeviceSynchronize waits for the kernel to finish, and returns
+		// any errors encountered during the launch.
+		cudaStatus = cudaDeviceSynchronize();
+		if (cudaStatus != cudaSuccess) {
+			fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching element_step_kernel!\n", cudaStatus);
+			goto Error;
+		}
+
 		cudaStatus = cudaMemcpy(dev_u, u, 2 * n_nds * sizeof(double), cudaMemcpyHostToDevice);
 		if (cudaStatus != cudaSuccess) {
 			fprintf(stderr, "cudaMemcpy failed!");
@@ -145,7 +256,15 @@ cudaError_t element_step_with_CUDA(double * u, double * v, double * a,
 			goto Error;
 		}
 
-		element_step_kernel <<< dimGrid, dimBlock >>> (dev_u, dev_v, dev_a, dev_load, dev_supports, dev_neighbors,
+		// cudaDeviceSynchronize waits for the kernel to finish, and returns
+		// any errors encountered during the launch.
+		cudaStatus = cudaDeviceSynchronize();
+		if (cudaStatus != cudaSuccess) {
+			fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching element_step_kernel!\n", cudaStatus);
+			goto Error;
+		}
+
+		element_step_kernel << < dimGrid, dimBlock >> > (dev_u, dev_v, dev_a, dev_load, dev_supports, dev_neighbors,
 		dev_n_vects, dev_K, dev_C, dev_Mi, dev_Kc, n_els, n_nds, n_nodedofs, stiffdim, load_function(dt*i/t_load));
 
 		// Check for any errors launching the kernel
@@ -164,23 +283,21 @@ cudaError_t element_step_with_CUDA(double * u, double * v, double * a,
 		}
 
 		// Copy output from GPU buffer to host memory.
-		cudaStatus = cudaMemcpy(u, dev_u, 2 * n_nds * sizeof(double), cudaMemcpyDeviceToHost);
-		if (cudaStatus != cudaSuccess) {
-			fprintf(stderr, "cudaMemcpy failed!");
-			goto Error;
-		}
-		cudaStatus = cudaMemcpy(v, dev_v, 2 * n_nds * sizeof(double), cudaMemcpyDeviceToHost);
-		if (cudaStatus != cudaSuccess) {
-			fprintf(stderr, "cudaMemcpy failed!");
-			goto Error;
-		}
 		cudaStatus = cudaMemcpy(a, dev_a, 2 * n_nds * sizeof(double), cudaMemcpyDeviceToHost);
 		if (cudaStatus != cudaSuccess) {
 			fprintf(stderr, "cudaMemcpy failed!");
 			goto Error;
 		}
 
-		if ((i%output_frequency) == 0)
+		// cudaDeviceSynchronize waits for the kernel to finish, and returns
+		// any errors encountered during the launch.
+		cudaStatus = cudaDeviceSynchronize();
+		if (cudaStatus != cudaSuccess) {
+			fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching element_step_kernel!\n", cudaStatus);
+			goto Error;
+		}
+
+		if (((i%output_frequency) == 0) || (i == 1))
 		{
 			char fn[100];
 			sprintf(fn,"%s%d.txt",outfile, i);
@@ -194,6 +311,14 @@ cudaError_t element_step_with_CUDA(double * u, double * v, double * a,
 			}
 		}
 	}
+	cudaEventRecord(stop, 0);
+	cudaEventSynchronize(stop);
+	float elapsedTime;
+	cudaEventElapsedTime(&elapsedTime, start, stop);
+	printf("GPU solve time %3.5f[s]\n", elapsedTime / 1000);
+	cudaEventDestroy(start);
+	cudaEventDestroy(stop);
+
 Error:
 	cudaFree(dev_u);
 	cudaFree(dev_v);
@@ -211,7 +336,7 @@ Error:
 
 __global__ void element_step_kernel(double * u, double * v, double * a, double * load, double * supports, int * neighbors, 
 	double * n_vects, double * K, double * C, double * Mi, double * Kc, int n_els, int n_nds, int n_nodedofs, int stiffdim, 
-	float loadfunc)
+	double loadfunc)
 {
 	int tid = threadIdx.x + blockIdx.x * blockDim.x; // thread id - global number of dof
 	if (tid < n_nds*n_nodedofs)

@@ -8,8 +8,8 @@
 int main(int argc, char** argv)
 {
 	Domain dom = Domain();
-	dom.load_from_file("D:/Dropbox/VladimirVancik/CUDA/jobs/3pb/3pb.txt");
-	dom.solve(30., 30., 1200000, "D:/Dropbox/VladimirVancik/CUDA/jobs/3pb/3pbo",12000);
+	dom.load_from_file("D:/Dropbox/VladimirVancik/CUDA/jobs/3pb_large_CUDA/3pb.txt");
+	dom.solve(0.03, 0.03, 100000, "D:/Dropbox/VladimirVancik/CUDA/jobs/3pb_large_CUDA/3pbo",5000);
 	//std::cout << dom.nodes[58].v_disp << std::endl;
 	std::cin.get();
 	//std::string f, o;
