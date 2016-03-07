@@ -13,7 +13,8 @@ __global__ void element_step_kernel(double * u, double * v, double * a,
 	double * load, double * supports, int * neighbors, double * n_vects, double * K, double * C, double * Mi,
 	double * Kc, int n_els, int n_nds, int n_nodedofs, int stiffdim, double loadfunc);
 
-__global__ void increment(double * u, double * v, double * a, int vdim);
+__global__ void increment(double * u, double * v, double * a, double * u_last, double * v_last, int vdim, double dt);
+__global__ void memorize_and_increment(double * u, double * v, double * a, double * u_last, double * v_last, int vdim, double dt);
 
 template<typename T>
 T *copy2gpu(T *host_data, int dim){
@@ -36,6 +37,17 @@ T *copy2gpu(T *host_data, int dim){
 	return dev_data;
 }
 
+template<typename T2>
+T2 *copy2cpu(T2 *dev_data, int dim){
+	cudaError_t cudaStatus;
+	T2 *host_data;
+	host_data = new T2[dim];
 
-double *copy2cpu(double *d_u, int dim);
-
+	// Copy output vector from gpu buffer to host memory.
+	cudaStatus = cudaMemcpy(host_data, dev_data, dim * sizeof(T2), cudaMemcpyDeviceToHost);
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaMemcpy failed!\n");
+		free(host_data);
+	}
+	return host_data;
+}
