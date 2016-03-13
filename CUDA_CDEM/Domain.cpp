@@ -147,7 +147,7 @@ void Domain::solve(double t_load, double t_max, int maxiter)
 		//}
 }
 
-void Domain::solve(double t_load, double t_max, int maxiter, char* outfile, int output_frequency)
+void Domain::solve(double t_load, double t_max, int maxiter, char* outfile, int output_frequency, int gridDim, int blockDim)
 {
 	float dt = t_max / maxiter;
 	int i, j;
@@ -213,8 +213,7 @@ void Domain::solve(double t_load, double t_max, int maxiter, char* outfile, int 
 	std::string num = "00.txt", fl=outfile;
 	write_state_to_file(fl + num, 0);
 	element_step_with_CUDA(u, v, a, load, supports, neighbors, n_vects, K, C, Mi, Kc, nelems, nnodes, nnodedofs,
-		stiffdim, t_load, t_max, maxiter, outfile, output_frequency);
-	std::cout << "Deflection of the 59th node: " << u[117] << std::endl;
+		stiffdim, t_load, t_max, maxiter, outfile, output_frequency, gridDim, blockDim);
 	//for (j = 0; j < nelems; j++)
 	//{
 	//	elements[j].iterate(dt, i * dt / t_load, true);
