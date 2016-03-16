@@ -24,7 +24,7 @@ void Element::print_self()
 // Calculate the normal vector of each face and pass it to the adjacent nodes.
 void Element::calc_normal_vectors()
 {
-	Eigen::VectorXd x(nnodes+1), y(nnodes+1);
+	Eigen::VectorXf x(nnodes+1), y(nnodes+1);
 	int i;
 	for (i = 0; i < nnodes; i++)
 	{
@@ -33,8 +33,8 @@ void Element::calc_normal_vectors()
 	}
 	x(nnodes) = x(0);
 	y(nnodes) = y(0);
-	double dx, dy;
-	Eigen::Vector2d vn;
+	float dx, dy;
+	Eigen::Vector2f vn;
 	for (i = 0; i < nnodes; i++)
 	{
 		dx = x(i + 1) - x(i);
@@ -47,7 +47,7 @@ void Element::calc_normal_vectors()
 }
 
 // Perform one iteration of dynamic relaxation. Return the velocity norm.
-double Element::iterate(float dt, double tau, bool verbose)
+float Element::iterate(float dt, float tau, bool verbose)
 {
 	Node ** nds;
 	int i;
@@ -57,8 +57,8 @@ double Element::iterate(float dt, double tau, bool verbose)
 	{
 		nds[i] = &domain->nodes[nodes[i] - 1];
 	}
-	Eigen::VectorXd v_disp(stiffness_dim), v_velo(stiffness_dim), v_acce(stiffness_dim), v_supp(stiffness_dim);
-	Eigen::VectorXd F_k_e(stiffness_dim), F_r(stiffness_dim), F_k_c(stiffness_dim), 
+	Eigen::VectorXf v_disp(stiffness_dim), v_velo(stiffness_dim), v_acce(stiffness_dim), v_supp(stiffness_dim);
+	Eigen::VectorXf F_k_e(stiffness_dim), F_r(stiffness_dim), F_k_c(stiffness_dim), 
 		F_c(stiffness_dim), F_ext(stiffness_dim), F_tot(stiffness_dim);
 	// Get initial values.
 	for (i = 0; i < stiffness_dim; i++)

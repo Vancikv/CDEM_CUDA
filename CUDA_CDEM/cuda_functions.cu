@@ -3,17 +3,17 @@
 #include <fstream>
 #include <istream>
 
-cudaError_t element_step_with_CUDA(double * u, double * v, double * a,
-	double * load, double * supports, int * neighbors, double * n_vects, double * K, double * C, double * Mi,
-	double * Kc, int n_els, int n_nds, int n_nodedofs, int stiffdim,
-	double t_load, double t_max, int maxiter, char * outfile, int output_frequency, int gridDim, int blockDim)
+cudaError_t element_step_with_CUDA(float * u, float * v, float * a,
+	float * load, float * supports, int * neighbors, float * n_vects, float * K, float * C, float * Mi,
+	float * Kc, int n_els, int n_nds, int n_nodedofs, int stiffdim,
+	float t_load, float t_max, int maxiter, char * outfile, int output_frequency, int gridDim, int blockDim)
 {
 	// Declare device vars
-	double * dev_u, *dev_v, *dev_a, *dev_load, *dev_supports, *dev_n_vects, *dev_K, *dev_C, *dev_Mi,
+	float * dev_u, *dev_v, *dev_a, *dev_load, *dev_supports, *dev_n_vects, *dev_K, *dev_C, *dev_Mi,
 		*dev_Kc;
-	double * dev_u_last, *dev_v_last;
+	float * dev_u_last, *dev_v_last;
 	int * dev_neighbors;
-	double dt = t_max / maxiter;
+	float dt = t_max / maxiter;
 	cudaEvent_t start, stop;
 	cudaEventCreate(&start);
 	cudaEventCreate(&stop);
@@ -115,19 +115,19 @@ cudaError_t element_step_with_CUDA(double * u, double * v, double * a,
 		if (((i%output_frequency) == 0) || (i == 1))
 		{
 			// Copy output from GPU buffer to host memory.
-			cudaStatus = cudaMemcpy(u, dev_u, 2 * n_nds * sizeof(double), cudaMemcpyDeviceToHost);
+			cudaStatus = cudaMemcpy(u, dev_u, 2 * n_nds * sizeof(float), cudaMemcpyDeviceToHost);
 			if (cudaStatus != cudaSuccess) {
 				fprintf(stderr, "cudaMemcpy failed!");
 				goto Error;
 			}
 			// Copy output from GPU buffer to host memory.
-			cudaStatus = cudaMemcpy(v, dev_v, 2 * n_nds * sizeof(double), cudaMemcpyDeviceToHost);
+			cudaStatus = cudaMemcpy(v, dev_v, 2 * n_nds * sizeof(float), cudaMemcpyDeviceToHost);
 			if (cudaStatus != cudaSuccess) {
 				fprintf(stderr, "cudaMemcpy failed!");
 				goto Error;
 			}
 			// Copy output from GPU buffer to host memory.
-			cudaStatus = cudaMemcpy(a, dev_a, 2 * n_nds * sizeof(double), cudaMemcpyDeviceToHost);
+			cudaStatus = cudaMemcpy(a, dev_a, 2 * n_nds * sizeof(float), cudaMemcpyDeviceToHost);
 			if (cudaStatus != cudaSuccess) {
 				fprintf(stderr, "cudaMemcpy failed!");
 				goto Error;
@@ -175,9 +175,9 @@ Error:
 	return cudaStatus;
 }
 
-__global__ void element_step_kernel(double * u, double * v, double * a, double * load, double * supports, int * neighbors, 
-	double * n_vects, double * K, double * C, double * Mi, double * Kc, int n_els, int n_nds, int n_nodedofs, int stiffdim, 
-	double loadfunc)
+__global__ void element_step_kernel(float * u, float * v, float * a, float * load, float * supports, int * neighbors, 
+	float * n_vects, float * K, float * C, float * Mi, float * Kc, int n_els, int n_nds, int n_nodedofs, int stiffdim, 
+	float loadfunc)
 {
 	int dofid = threadIdx.x + blockIdx.x * blockDim.x; // thread id - global number of dof
 
@@ -188,30 +188,30 @@ __global__ void element_step_kernel(double * u, double * v, double * a, double *
 		int ned = dofid % stiffdim; // number of dof within element
 		int mdim = stiffdim*stiffdim; // number of elements of the stiffness matrix
 		int i;
-		double kc11 = Kc[0];
-		double kc21 = Kc[1];
-		double kc12 = Kc[2];
-		double kc22 = Kc[3];
+		float kc11 = Kc[0];
+		float kc21 = Kc[1];
+		float kc12 = Kc[2];
+		float kc22 = Kc[3];
 
 		// Element stiffness force:
-		double F_k_e = 0;
+		float F_k_e = 0;
 		for (i = 0; i < stiffdim; i++)
 		{
 			F_k_e += -K[eid*mdim + i*stiffdim + ned] * u[eid*stiffdim + i];
 		}
 		// Contact stiffness force:
-		double F_k_c = 0;
+		float F_k_c = 0;
 		for (i = 0; i < 2; i++)
 		{
 			int nbr = neighbors[nid + i];
 			if (nbr != 0)
 			{
-				double t11 = n_vects[4 * (dofid / n_nodedofs) + 2 * i];
-				double t12 = n_vects[4 * (dofid / n_nodedofs) + 2 * i + 1];
-				double t21 = -t12;
-				double t22 = t11;
-				double du_x = u[(nbr - 1)*n_nodedofs] - u[nid];
-				double du_y= u[(nbr - 1)*n_nodedofs+1] - u[nid+1];
+				float t11 = n_vects[4 * (dofid / n_nodedofs) + 2 * i];
+				float t12 = n_vects[4 * (dofid / n_nodedofs) + 2 * i + 1];
+				float t21 = -t12;
+				float t22 = t11;
+				float du_x = u[(nbr - 1)*n_nodedofs] - u[nid];
+				float du_y= u[(nbr - 1)*n_nodedofs+1] - u[nid+1];
 				if (dofid == nid) // X-component
 				{
 					F_k_c += du_x * (t11*(t11*kc11 + t21*kc21) + t21*(t11*kc12 + t21*kc22)) + du_y * (t12*(t11*kc11 + t21*kc21) + t22*(t11*kc12 + t21*kc22)); // T_T * Kc * T * du_g
@@ -223,15 +223,15 @@ __global__ void element_step_kernel(double * u, double * v, double * a, double *
 			}
 		}
 		// Damping force:
-		double F_c = -C[dofid] * v[dofid];
+		float F_c = -C[dofid] * v[dofid];
 		// Reaction force
-		double F_r = supports[dofid] * (-F_k_e - F_k_c - F_c - loadfunc*load[dofid]);
+		float F_r = supports[dofid] * (-F_k_e - F_k_c - F_c - loadfunc*load[dofid]);
 		a[dofid] = Mi[dofid] * (F_k_e + F_k_c + F_r + F_c + loadfunc*load[dofid]);
 		dofid += gridDim.x * blockDim.x;
 	}
 }
 
-__global__ void memorize_and_increment(double * u, double * v, double * a, double * u_last, double * v_last, int vdim, double dt)
+__global__ void memorize_and_increment(float * u, float * v, float * a, float * u_last, float * v_last, int vdim, float dt)
 {
 	int dofid = threadIdx.x + blockIdx.x * blockDim.x; // thread id - global number of dof
 	while (dofid<vdim)
@@ -244,7 +244,7 @@ __global__ void memorize_and_increment(double * u, double * v, double * a, doubl
 	}
 }
 
-__global__ void increment(double * u, double * v, double * a, double * u_last, double * v_last, int vdim, double dt)
+__global__ void increment(float * u, float * v, float * a, float * u_last, float * v_last, int vdim, float dt)
 {
 	int dofid = threadIdx.x + blockIdx.x * blockDim.x; // thread id - global number of dof
 	while (dofid < vdim)

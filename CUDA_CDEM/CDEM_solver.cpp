@@ -14,7 +14,7 @@ int main(int argc, char** argv)
 	//std::cin.get();
 	std::string f;
 	char * o;
-	double t1, t2;
+	float t1, t2;
 	int ns, of, gd, bd;
 	if (argc == 2)
 	{

@@ -6,7 +6,7 @@ Node::Node()
 {
 }
 
-Node::Node(int _ndofs, double _x, double _y, int * _supports, int * _neighbors, Eigen::VectorXd _v_load)
+Node::Node(int _ndofs, float _x, float _y, int * _supports, int * _neighbors, Eigen::VectorXf _v_load)
 {
 	ndofs = _ndofs;
 	x = _x;
@@ -14,9 +14,9 @@ Node::Node(int _ndofs, double _x, double _y, int * _supports, int * _neighbors, 
 	supports = _supports;
 	neighbors = _neighbors;
 	v_load = _v_load;
-	v_disp = Eigen::VectorXd::Zero(ndofs);
-	v_velo = Eigen::VectorXd::Zero(ndofs);
-	v_acce = Eigen::VectorXd::Zero(ndofs);
+	v_disp = Eigen::VectorXf::Zero(ndofs);
+	v_velo = Eigen::VectorXf::Zero(ndofs);
+	v_acce = Eigen::VectorXf::Zero(ndofs);
 	v_code = new int [ndofs];
 	int i;
 	for (i = 0; i < ndofs; i++)
@@ -50,7 +50,7 @@ void Node::set_codes(int &maxcode)
 
 
 // Initiate nodal values prior to a dynamic relaxation calculation.
-void Node::init_vals(double tau_0, double mass)
+void Node::init_vals(float tau_0, float mass)
 {
 	int i;
 	for (i = 0; i < ndofs; i++)
@@ -63,19 +63,19 @@ void Node::init_vals(double tau_0, double mass)
 }
 
 // Set the displacement vector.
-void Node::set_disp(Eigen::VectorXd val)
+void Node::set_disp(Eigen::VectorXf val)
 {
 	v_disp = val;
 }
 
 // Set the velocity vector.
-void Node::set_velo(Eigen::VectorXd val)
+void Node::set_velo(Eigen::VectorXf val)
 {
 	v_velo = val;
 }
 
 // Set the acceleration vector.
-void Node::set_acce(Eigen::VectorXd val)
+void Node::set_acce(Eigen::VectorXf val)
 {
 	v_acce = val;
 }

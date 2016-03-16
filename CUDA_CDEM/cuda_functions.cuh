@@ -4,17 +4,17 @@
 #include <stdio.h>
 #include <iostream>
 
-cudaError_t element_step_with_CUDA(double * u, double * v, double * a,
-	double * load, double * supports, int * neighbors, double * n_vects, double * K, double * C, double * Mi,
-	double * Kc, int n_els, int n_nds, int n_nodedofs, int stiffdim, double t_load, double t_max, int maxiter,
+cudaError_t element_step_with_CUDA(float * u, float * v, float * a,
+	float * load, float * supports, int * neighbors, float * n_vects, float * K, float * C, float * Mi,
+	float * Kc, int n_els, int n_nds, int n_nodedofs, int stiffdim, float t_load, float t_max, int maxiter,
 	char* outfile, int output_frequency, int gridDim, int blockDim);
 
-__global__ void element_step_kernel(double * u, double * v, double * a,
-	double * load, double * supports, int * neighbors, double * n_vects, double * K, double * C, double * Mi,
-	double * Kc, int n_els, int n_nds, int n_nodedofs, int stiffdim, double loadfunc);
+__global__ void element_step_kernel(float * u, float * v, float * a,
+	float * load, float * supports, int * neighbors, float * n_vects, float * K, float * C, float * Mi,
+	float * Kc, int n_els, int n_nds, int n_nodedofs, int stiffdim, float loadfunc);
 
-__global__ void increment(double * u, double * v, double * a, double * u_last, double * v_last, int vdim, double dt);
-__global__ void memorize_and_increment(double * u, double * v, double * a, double * u_last, double * v_last, int vdim, double dt);
+__global__ void increment(float * u, float * v, float * a, float * u_last, float * v_last, int vdim, float dt);
+__global__ void memorize_and_increment(float * u, float * v, float * a, float * u_last, float * v_last, int vdim, float dt);
 
 template<typename T>
 T *copy2gpu(T *host_data, int dim){

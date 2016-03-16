@@ -5,28 +5,28 @@ class Node
 {
 public:
 	Node();
-	Node(int, double, double, int *, int *, Eigen::VectorXd);
+	Node(int, float, float, int *, int *, Eigen::VectorXf);
 	~Node();
 	int ndofs;
-	double x;
-	double y;
-	Eigen::VectorXd v_disp;
-	Eigen::VectorXd v_velo;
-	Eigen::VectorXd v_acce;
+	float x;
+	float y;
+	Eigen::VectorXf v_disp;
+	Eigen::VectorXf v_velo;
+	Eigen::VectorXf v_acce;
 	int * v_code;
-	Eigen::Vector2d v_norm[2];
-	Eigen::VectorXd v_load;
+	Eigen::Vector2f v_norm[2];
+	Eigen::VectorXf v_load;
 	int * supports;
 	int * neighbors;
 	// Assign code numbers to node dofs. Increase the maxcode value accordingly.
 	void set_codes(int &maxcode);
 	// Initiate nodal values prior to a dynamic relaxation calculation.
-	void init_vals(double tau_0, double mass);
+	void init_vals(float tau_0, float mass);
 	// Set the displacement vector.
-	void set_disp(Eigen::VectorXd);
+	void set_disp(Eigen::VectorXf);
 	// Set the velocity vector.
-	void set_velo(Eigen::VectorXd);
+	void set_velo(Eigen::VectorXf);
 	// Set the acceleration vector.
-	void set_acce(Eigen::VectorXd);
+	void set_acce(Eigen::VectorXf);
 };
 
