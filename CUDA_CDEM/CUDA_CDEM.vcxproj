@@ -25,6 +25,7 @@
     <ClInclude Include="Element.h" />
     <ClInclude Include="ElementQuadrangleLin.h" />
     <ClInclude Include="Node.h" />
+    <ClInclude Include="time_measuring.h" />
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="aux_functions.cpp" />

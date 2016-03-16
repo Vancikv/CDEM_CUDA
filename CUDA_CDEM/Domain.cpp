@@ -6,6 +6,7 @@
 #include <istream>
 #include "cuda_functions.cuh"
 #include "aux_functions.h"
+#include "time_measuring.h"
 
 Domain::Domain(int _nelems, int _nnodes, Node * _nodes, Element * _elements, double c_n, double c_s)
 {
@@ -151,6 +152,8 @@ void Domain::solve(double t_load, double t_max, int maxiter, char* outfile, int 
 {
 	float dt = t_max / maxiter;
 	int i, j;
+	double solve_begin_CPU = get_cpu_time();
+	double solve_begin_wall = get_wall_time();
 	for (i = 0; i < nelems; i++)
 	{
 		elements[i].set_matrices();
@@ -194,7 +197,6 @@ void Domain::solve(double t_load, double t_max, int maxiter, char* outfile, int 
 		*(n_vects++) = nodes[i].v_norm[0](1);
 		*(n_vects++) = nodes[i].v_norm[1](0);
 		*(n_vects++) = nodes[i].v_norm[1](1);
-
 	}
 
 	supports -= vdim;
@@ -214,6 +216,10 @@ void Domain::solve(double t_load, double t_max, int maxiter, char* outfile, int 
 	write_state_to_file(fl + num, 0);
 	element_step_with_CUDA(u, v, a, load, supports, neighbors, n_vects, K, C, Mi, Kc, nelems, nnodes, nnodedofs,
 		stiffdim, t_load, t_max, maxiter, outfile, output_frequency, gridDim, blockDim);
+	double solve_end_CPU = get_cpu_time();
+	double solve_end_wall = get_wall_time();
+	std::cout << "CPU time taken: " << solve_end_CPU - solve_begin_CPU << " s" << std::endl;
+	std::cout << "Wall time taken: " << solve_end_wall - solve_begin_wall << " s" << std::endl;
 	//for (j = 0; j < nelems; j++)
 	//{
 	//	elements[j].iterate(dt, i * dt / t_load, true);
