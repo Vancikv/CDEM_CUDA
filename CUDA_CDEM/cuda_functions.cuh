@@ -1,20 +1,21 @@
 #pragma once
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
+#include "type_manager.h"
 #include <stdio.h>
 #include <iostream>
 
-cudaError_t element_step_with_CUDA(float * u, float * v, float * a,
-	float * load, float * supports, int * neighbors, float * n_vects, float * K, float * C, float * Mi,
-	float * Kc, int n_els, int n_nds, int n_nodedofs, int stiffdim, float t_load, float t_max, int maxiter,
+cudaError_t element_step_with_CUDA(FLOAT_TYPE * u, FLOAT_TYPE * v, FLOAT_TYPE * a,
+	FLOAT_TYPE * load, FLOAT_TYPE * supports, int * neighbors, FLOAT_TYPE * n_vects, FLOAT_TYPE * K, FLOAT_TYPE * C, FLOAT_TYPE * Mi,
+	FLOAT_TYPE * Kc, int n_els, int n_nds, int n_nodedofs, int stiffdim, FLOAT_TYPE t_load, FLOAT_TYPE t_max, int maxiter,
 	char* outfile, int output_frequency, int gridDim, int blockDim);
 
-__global__ void element_step_kernel(float * u, float * v, float * a,
-	float * load, float * supports, int * neighbors, float * n_vects, float * K, float * C, float * Mi,
-	float * Kc, int n_els, int n_nds, int n_nodedofs, int stiffdim, float loadfunc);
+__global__ void element_step_kernel(FLOAT_TYPE * u, FLOAT_TYPE * v, FLOAT_TYPE * a,
+	FLOAT_TYPE * load, FLOAT_TYPE * supports, int * neighbors, FLOAT_TYPE * n_vects, FLOAT_TYPE * K, FLOAT_TYPE * C, FLOAT_TYPE * Mi,
+	FLOAT_TYPE * Kc, int n_els, int n_nds, int n_nodedofs, int stiffdim, FLOAT_TYPE loadfunc);
 
-__global__ void increment(float * u, float * v, float * a, float * u_last, float * v_last, int vdim, float dt);
-__global__ void memorize_and_increment(float * u, float * v, float * a, float * u_last, float * v_last, int vdim, float dt);
+__global__ void increment(FLOAT_TYPE * u, FLOAT_TYPE * v, FLOAT_TYPE * a, FLOAT_TYPE * u_last, FLOAT_TYPE * v_last, int vdim, FLOAT_TYPE dt);
+__global__ void memorize_and_increment(FLOAT_TYPE * u, FLOAT_TYPE * v, FLOAT_TYPE * a, FLOAT_TYPE * u_last, FLOAT_TYPE * v_last, int vdim, FLOAT_TYPE dt);
 
 template<typename T>
 T *copy2gpu(T *host_data, int dim){

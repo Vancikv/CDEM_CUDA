@@ -1,6 +1,6 @@
 #include "aux_functions.h"
 
-double load_function(float tau)
+double load_function(FLOAT_TYPE tau)
 {
 	if (tau < 1.0)
 	{

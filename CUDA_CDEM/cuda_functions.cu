@@ -3,17 +3,17 @@
 #include <fstream>
 #include <istream>
 
-cudaError_t element_step_with_CUDA(float * u, float * v, float * a,
-	float * load, float * supports, int * neighbors, float * n_vects, float * K, float * C, float * Mi,
-	float * Kc, int n_els, int n_nds, int n_nodedofs, int stiffdim,
-	float t_load, float t_max, int maxiter, char * outfile, int output_frequency, int gridDim, int blockDim)
+cudaError_t element_step_with_CUDA(FLOAT_TYPE * u, FLOAT_TYPE * v, FLOAT_TYPE * a,
+	FLOAT_TYPE * load, FLOAT_TYPE * supports, int * neighbors, FLOAT_TYPE * n_vects, FLOAT_TYPE * K, FLOAT_TYPE * C, FLOAT_TYPE * Mi,
+	FLOAT_TYPE * Kc, int n_els, int n_nds, int n_nodedofs, int stiffdim,
+	FLOAT_TYPE t_load, FLOAT_TYPE t_max, int maxiter, char * outfile, int output_frequency, int gridDim, int blockDim)
 {
 	// Declare device vars
-	float * dev_u, *dev_v, *dev_a, *dev_load, *dev_supports, *dev_n_vects, *dev_K, *dev_C, *dev_Mi,
+	FLOAT_TYPE * dev_u, *dev_v, *dev_a, *dev_load, *dev_supports, *dev_n_vects, *dev_K, *dev_C, *dev_Mi,
 		*dev_Kc;
-	float * dev_u_last, *dev_v_last;
+	FLOAT_TYPE * dev_u_last, *dev_v_last;
 	int * dev_neighbors;
-	float dt = t_max / maxiter;
+	FLOAT_TYPE dt = t_max / maxiter;
 	cudaEvent_t start, stop;
 	cudaEventCreate(&start);
 	cudaEventCreate(&stop);
@@ -115,19 +115,19 @@ cudaError_t element_step_with_CUDA(float * u, float * v, float * a,
 		if (((i%output_frequency) == 0) || (i == 1))
 		{
 			// Copy output from GPU buffer to host memory.
-			cudaStatus = cudaMemcpy(u, dev_u, 2 * n_nds * sizeof(float), cudaMemcpyDeviceToHost);
+			cudaStatus = cudaMemcpy(u, dev_u, 2 * n_nds * sizeof(FLOAT_TYPE), cudaMemcpyDeviceToHost);
 			if (cudaStatus != cudaSuccess) {
 				fprintf(stderr, "cudaMemcpy failed!");
 				goto Error;
 			}
 			// Copy output from GPU buffer to host memory.
-			cudaStatus = cudaMemcpy(v, dev_v, 2 * n_nds * sizeof(float), cudaMemcpyDeviceToHost);
+			cudaStatus = cudaMemcpy(v, dev_v, 2 * n_nds * sizeof(FLOAT_TYPE), cudaMemcpyDeviceToHost);
 			if (cudaStatus != cudaSuccess) {
 				fprintf(stderr, "cudaMemcpy failed!");
 				goto Error;
 			}
 			// Copy output from GPU buffer to host memory.
-			cudaStatus = cudaMemcpy(a, dev_a, 2 * n_nds * sizeof(float), cudaMemcpyDeviceToHost);
+			cudaStatus = cudaMemcpy(a, dev_a, 2 * n_nds * sizeof(FLOAT_TYPE), cudaMemcpyDeviceToHost);
 			if (cudaStatus != cudaSuccess) {
 				fprintf(stderr, "cudaMemcpy failed!");
 				goto Error;
@@ -175,9 +175,9 @@ Error:
 	return cudaStatus;
 }
 
-__global__ void element_step_kernel(float * u, float * v, float * a, float * load, float * supports, int * neighbors, 
-	float * n_vects, float * K, float * C, float * Mi, float * Kc, int n_els, int n_nds, int n_nodedofs, int stiffdim, 
-	float loadfunc)
+__global__ void element_step_kernel(FLOAT_TYPE * u, FLOAT_TYPE * v, FLOAT_TYPE * a, FLOAT_TYPE * load, FLOAT_TYPE * supports, int * neighbors, 
+	FLOAT_TYPE * n_vects, FLOAT_TYPE * K, FLOAT_TYPE * C, FLOAT_TYPE * Mi, FLOAT_TYPE * Kc, int n_els, int n_nds, int n_nodedofs, int stiffdim, 
+	FLOAT_TYPE loadfunc)
 {
 	int dofid = threadIdx.x + blockIdx.x * blockDim.x; // thread id - global number of dof
 
@@ -188,30 +188,30 @@ __global__ void element_step_kernel(float * u, float * v, float * a, float * loa
 		int ned = dofid % stiffdim; // number of dof within element
 		int mdim = stiffdim*stiffdim; // number of elements of the stiffness matrix
 		int i;
-		float kc11 = Kc[0];
-		float kc21 = Kc[1];
-		float kc12 = Kc[2];
-		float kc22 = Kc[3];
+		FLOAT_TYPE kc11 = Kc[0];
+		FLOAT_TYPE kc21 = Kc[1];
+		FLOAT_TYPE kc12 = Kc[2];
+		FLOAT_TYPE kc22 = Kc[3];
 
 		// Element stiffness force:
-		float F_k_e = 0;
+		FLOAT_TYPE F_k_e = 0;
 		for (i = 0; i < stiffdim; i++)
 		{
 			F_k_e += -K[eid*mdim + i*stiffdim + ned] * u[eid*stiffdim + i];
 		}
 		// Contact stiffness force:
-		float F_k_c = 0;
+		FLOAT_TYPE F_k_c = 0;
 		for (i = 0; i < 2; i++)
 		{
 			int nbr = neighbors[nid + i];
 			if (nbr != 0)
 			{
-				float t11 = n_vects[4 * (dofid / n_nodedofs) + 2 * i];
-				float t12 = n_vects[4 * (dofid / n_nodedofs) + 2 * i + 1];
-				float t21 = -t12;
-				float t22 = t11;
-				float du_x = u[(nbr - 1)*n_nodedofs] - u[nid];
-				float du_y= u[(nbr - 1)*n_nodedofs+1] - u[nid+1];
+				FLOAT_TYPE t11 = n_vects[4 * (dofid / n_nodedofs) + 2 * i];
+				FLOAT_TYPE t12 = n_vects[4 * (dofid / n_nodedofs) + 2 * i + 1];
+				FLOAT_TYPE t21 = -t12;
+				FLOAT_TYPE t22 = t11;
+				FLOAT_TYPE du_x = u[(nbr - 1)*n_nodedofs] - u[nid];
+				FLOAT_TYPE du_y= u[(nbr - 1)*n_nodedofs+1] - u[nid+1];
 				if (dofid == nid) // X-component
 				{
 					F_k_c += du_x * (t11*(t11*kc11 + t21*kc21) + t21*(t11*kc12 + t21*kc22)) + du_y * (t12*(t11*kc11 + t21*kc21) + t22*(t11*kc12 + t21*kc22)); // T_T * Kc * T * du_g
@@ -223,15 +223,15 @@ __global__ void element_step_kernel(float * u, float * v, float * a, float * loa
 			}
 		}
 		// Damping force:
-		float F_c = -C[dofid] * v[dofid];
+		FLOAT_TYPE F_c = -C[dofid] * v[dofid];
 		// Reaction force
-		float F_r = supports[dofid] * (-F_k_e - F_k_c - F_c - loadfunc*load[dofid]);
+		FLOAT_TYPE F_r = supports[dofid] * (-F_k_e - F_k_c - F_c - loadfunc*load[dofid]);
 		a[dofid] = Mi[dofid] * (F_k_e + F_k_c + F_r + F_c + loadfunc*load[dofid]);
 		dofid += gridDim.x * blockDim.x;
 	}
 }
 
-__global__ void memorize_and_increment(float * u, float * v, float * a, float * u_last, float * v_last, int vdim, float dt)
+__global__ void memorize_and_increment(FLOAT_TYPE * u, FLOAT_TYPE * v, FLOAT_TYPE * a, FLOAT_TYPE * u_last, FLOAT_TYPE * v_last, int vdim, FLOAT_TYPE dt)
 {
 	int dofid = threadIdx.x + blockIdx.x * blockDim.x; // thread id - global number of dof
 	while (dofid<vdim)
@@ -244,7 +244,7 @@ __global__ void memorize_and_increment(float * u, float * v, float * a, float * 
 	}
 }
 
-__global__ void increment(float * u, float * v, float * a, float * u_last, float * v_last, int vdim, float dt)
+__global__ void increment(FLOAT_TYPE * u, FLOAT_TYPE * v, FLOAT_TYPE * a, FLOAT_TYPE * u_last, FLOAT_TYPE * v_last, int vdim, FLOAT_TYPE dt)
 {
 	int dofid = threadIdx.x + blockIdx.x * blockDim.x; // thread id - global number of dof
 	while (dofid < vdim)
