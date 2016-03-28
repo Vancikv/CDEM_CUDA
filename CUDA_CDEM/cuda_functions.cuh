@@ -19,12 +19,22 @@
 		goto Error; \
 	}
 
+#define ARRAY_INIT(arr,size) \
+	for (int i; i<size;i++) \
+		{ \
+		arr[i] = 0; \
+		} \
+
 cudaError_t element_step_with_CUDA(FLOAT_TYPE * u, FLOAT_TYPE * v, FLOAT_TYPE * a,
 	FLOAT_TYPE * load, FLOAT_TYPE * supports, int * neighbors, FLOAT_TYPE * n_vects, FLOAT_TYPE * K, FLOAT_TYPE * C, FLOAT_TYPE * Mi,
 	FLOAT_TYPE * Kc, int n_els, int n_nds, int n_nodedofs, int stiffdim, FLOAT_TYPE t_load, FLOAT_TYPE t_max, int maxiter,
 	char* outfile, int output_frequency, int gridDim, int blockDim);
 
 __global__ void dof_step_kernel(FLOAT_TYPE * u, FLOAT_TYPE * v, FLOAT_TYPE * a,
+	FLOAT_TYPE * load, FLOAT_TYPE * supports, int * neighbors, FLOAT_TYPE * n_vects, FLOAT_TYPE * K, FLOAT_TYPE * C, FLOAT_TYPE * Mi,
+	FLOAT_TYPE * Kc, int n_els, int n_nds, int n_nodedofs, int stiffdim, FLOAT_TYPE loadfunc);
+
+__global__ void element_step_kernel(FLOAT_TYPE * u, FLOAT_TYPE * v, FLOAT_TYPE * a,
 	FLOAT_TYPE * load, FLOAT_TYPE * supports, int * neighbors, FLOAT_TYPE * n_vects, FLOAT_TYPE * K, FLOAT_TYPE * C, FLOAT_TYPE * Mi,
 	FLOAT_TYPE * Kc, int n_els, int n_nds, int n_nodedofs, int stiffdim, FLOAT_TYPE loadfunc);
 
