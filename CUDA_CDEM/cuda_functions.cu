@@ -61,7 +61,7 @@ cudaError_t element_step_with_CUDA(FLOAT_TYPE * u, FLOAT_TYPE * v, FLOAT_TYPE * 
 			// any errors encountered during the launch.
 			CUDA_SYNCHRO(cudaStatus)
 
-			element_step_kernel << < dimGrid, dimBlock >> > (dev_u, dev_v, dev_a, dev_load, dev_supports, dev_neighbors,
+			dof_step_kernel << < dimGrid, dimBlock >> > (dev_u, dev_v, dev_a, dev_load, dev_supports, dev_neighbors,
 				dev_n_vects, dev_K, dev_C, dev_Mi, dev_Kc, n_els, n_nds, n_nodedofs, stiffdim, load_function(dt*i / t_load));
 
 			CUDA_ERRORCHCK(cudaStatus)
@@ -71,7 +71,7 @@ cudaError_t element_step_with_CUDA(FLOAT_TYPE * u, FLOAT_TYPE * v, FLOAT_TYPE * 
 		}
 		CUDA_SYNCHRO(cudaStatus)
 
-		element_step_kernel << < dimGrid, dimBlock >> > (dev_u, dev_v, dev_a, dev_load, dev_supports, dev_neighbors,
+		dof_step_kernel << < dimGrid, dimBlock >> > (dev_u, dev_v, dev_a, dev_load, dev_supports, dev_neighbors,
 		dev_n_vects, dev_K, dev_C, dev_Mi, dev_Kc, n_els, n_nds, n_nodedofs, stiffdim, load_function(dt*i/t_load));
 
 		CUDA_ERRORCHCK(cudaStatus)
@@ -79,35 +79,14 @@ cudaError_t element_step_with_CUDA(FLOAT_TYPE * u, FLOAT_TYPE * v, FLOAT_TYPE * 
 
 		if (((i%output_frequency) == 0) || (i == 1))
 		{
-			// Copy output from GPU buffer to host memory.
-			cudaStatus = cudaMemcpy(u, dev_u, 2 * n_nds * sizeof(FLOAT_TYPE), cudaMemcpyDeviceToHost);
-			if (cudaStatus != cudaSuccess) {
-				fprintf(stderr, "cudaMemcpy failed!");
-				goto Error;
-			}
-			// Copy output from GPU buffer to host memory.
-			cudaStatus = cudaMemcpy(v, dev_v, 2 * n_nds * sizeof(FLOAT_TYPE), cudaMemcpyDeviceToHost);
-			if (cudaStatus != cudaSuccess) {
-				fprintf(stderr, "cudaMemcpy failed!");
-				goto Error;
-			}
-			// Copy output from GPU buffer to host memory.
-			cudaStatus = cudaMemcpy(a, dev_a, 2 * n_nds * sizeof(FLOAT_TYPE), cudaMemcpyDeviceToHost);
-			if (cudaStatus != cudaSuccess) {
-				fprintf(stderr, "cudaMemcpy failed!");
-				goto Error;
-			}
-			// cudaDeviceSynchronize waits for the kernel to finish, and returns
-			// any errors encountered during the launch.
-			cudaStatus = cudaDeviceSynchronize();
-			if (cudaStatus != cudaSuccess) {
-				fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching element_step_kernel!\n", cudaStatus);
-				goto Error;
-			}
+			copy2cpu(u, dev_u, 2 * n_nds);
+			copy2cpu(v, dev_v, 2 * n_nds);
+			copy2cpu(a, dev_a, 2 * n_nds);
+			CUDA_SYNCHRO(cudaStatus)
+
 			char fn[100];
 			sprintf(fn,"%s%d.txt",outfile, i);
 			std::ofstream f(fn);
-
 			f << n_nds << " " << n_els << " " << i*dt << " " << load_function(dt*i / t_load) << std::endl;
 			for (j = 0; j < n_nds; j++)
 			{
@@ -140,7 +119,7 @@ Error:
 	return cudaStatus;
 }
 
-__global__ void element_step_kernel(FLOAT_TYPE * u, FLOAT_TYPE * v, FLOAT_TYPE * a, FLOAT_TYPE * load, FLOAT_TYPE * supports, int * neighbors, 
+__global__ void dof_step_kernel(FLOAT_TYPE * u, FLOAT_TYPE * v, FLOAT_TYPE * a, FLOAT_TYPE * load, FLOAT_TYPE * supports, int * neighbors, 
 	FLOAT_TYPE * n_vects, FLOAT_TYPE * K, FLOAT_TYPE * C, FLOAT_TYPE * Mi, FLOAT_TYPE * Kc, int n_els, int n_nds, int n_nodedofs, int stiffdim, 
 	FLOAT_TYPE loadfunc)
 {

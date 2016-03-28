@@ -24,7 +24,7 @@ cudaError_t element_step_with_CUDA(FLOAT_TYPE * u, FLOAT_TYPE * v, FLOAT_TYPE * 
 	FLOAT_TYPE * Kc, int n_els, int n_nds, int n_nodedofs, int stiffdim, FLOAT_TYPE t_load, FLOAT_TYPE t_max, int maxiter,
 	char* outfile, int output_frequency, int gridDim, int blockDim);
 
-__global__ void element_step_kernel(FLOAT_TYPE * u, FLOAT_TYPE * v, FLOAT_TYPE * a,
+__global__ void dof_step_kernel(FLOAT_TYPE * u, FLOAT_TYPE * v, FLOAT_TYPE * a,
 	FLOAT_TYPE * load, FLOAT_TYPE * supports, int * neighbors, FLOAT_TYPE * n_vects, FLOAT_TYPE * K, FLOAT_TYPE * C, FLOAT_TYPE * Mi,
 	FLOAT_TYPE * Kc, int n_els, int n_nds, int n_nodedofs, int stiffdim, FLOAT_TYPE loadfunc);
 
@@ -53,16 +53,12 @@ T *copy2gpu(T *host_data, int dim){
 }
 
 template<typename T2>
-T2 *copy2cpu(T2 *dev_data, int dim){
+void copy2cpu(T2 *host_data, T2 *dev_data, int dim){
+	// Copy data from gpu to host memory. Host variable is passed already initialized.
 	cudaError_t cudaStatus;
-	T2 *host_data;
-	host_data = new T2[dim];
-
-	// Copy output vector from gpu buffer to host memory.
 	cudaStatus = cudaMemcpy(host_data, dev_data, dim * sizeof(T2), cudaMemcpyDeviceToHost);
 	if (cudaStatus != cudaSuccess) {
 		fprintf(stderr, "cudaMemcpy failed!\n");
 		free(host_data);
 	}
-	return host_data;
 }
