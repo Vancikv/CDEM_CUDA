@@ -59,58 +59,23 @@ cudaError_t element_step_with_CUDA(FLOAT_TYPE * u, FLOAT_TYPE * v, FLOAT_TYPE * 
 		{
 			// cudaDeviceSynchronize waits for the kernel to finish, and returns
 			// any errors encountered during the launch.
-			cudaStatus = cudaDeviceSynchronize();
-			if (cudaStatus != cudaSuccess) {
-				fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching element_step_kernel!\n", cudaStatus);
-				goto Error;
-			}
+			CUDA_SYNCHRO(cudaStatus)
 
 			element_step_kernel << < dimGrid, dimBlock >> > (dev_u, dev_v, dev_a, dev_load, dev_supports, dev_neighbors,
 				dev_n_vects, dev_K, dev_C, dev_Mi, dev_Kc, n_els, n_nds, n_nodedofs, stiffdim, load_function(dt*i / t_load));
 
-			// Check for any errors launching the kernel
-			cudaStatus = cudaGetLastError();
-			if (cudaStatus != cudaSuccess) {
-				fprintf(stderr, "element_step_kernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
-				goto Error;
-			}
-
-			// cudaDeviceSynchronize waits for the kernel to finish, and returns
-			// any errors encountered during the launch.
-			cudaStatus = cudaDeviceSynchronize();
-			if (cudaStatus != cudaSuccess) {
-				fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching element_step_kernel!\n", cudaStatus);
-				goto Error;
-			}
+			CUDA_ERRORCHCK(cudaStatus)
+			CUDA_SYNCHRO(cudaStatus)
 
 			increment << <dimGrid, dimBlock >> >(dev_u, dev_v, dev_a, dev_u_last, dev_v_last, n_nodedofs*n_nds, dt);
 		}
-		// cudaDeviceSynchronize waits for the kernel to finish, and returns
-		// any errors encountered during the launch.
-		cudaStatus = cudaDeviceSynchronize();
-		if (cudaStatus != cudaSuccess) {
-			fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching element_step_kernel!\n", cudaStatus);
-			goto Error;
-		}
+		CUDA_SYNCHRO(cudaStatus)
 
 		element_step_kernel << < dimGrid, dimBlock >> > (dev_u, dev_v, dev_a, dev_load, dev_supports, dev_neighbors,
 		dev_n_vects, dev_K, dev_C, dev_Mi, dev_Kc, n_els, n_nds, n_nodedofs, stiffdim, load_function(dt*i/t_load));
 
-		// Check for any errors launching the kernel
-		cudaStatus = cudaGetLastError();
-		if (cudaStatus != cudaSuccess) {
-			fprintf(stderr, "element_step_kernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
-			goto Error;
-		}
-
-		// cudaDeviceSynchronize waits for the kernel to finish, and returns
-		// any errors encountered during the launch.
-		cudaStatus = cudaDeviceSynchronize();
-		if (cudaStatus != cudaSuccess) {
-			fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching element_step_kernel!\n", cudaStatus);
-			goto Error;
-		}
-
+		CUDA_ERRORCHCK(cudaStatus)
+		CUDA_SYNCHRO(cudaStatus)
 
 		if (((i%output_frequency) == 0) || (i == 1))
 		{

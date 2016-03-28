@@ -5,6 +5,20 @@
 #include <stdio.h>
 #include <iostream>
 
+#define CUDA_SYNCHRO(cudaStatus) \
+	cudaStatus = cudaDeviceSynchronize(); \
+	if (cudaStatus != cudaSuccess) { \
+		fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching element_step_kernel!\n", cudaStatus); \
+		goto Error; \
+	}
+
+#define CUDA_ERRORCHCK(cudaStatus) \
+	cudaStatus = cudaGetLastError(); \
+	if (cudaStatus != cudaSuccess) { \
+		fprintf(stderr, "element_step_kernel launch failed: %s\n", cudaGetErrorString(cudaStatus)); \
+		goto Error; \
+	}
+
 cudaError_t element_step_with_CUDA(FLOAT_TYPE * u, FLOAT_TYPE * v, FLOAT_TYPE * a,
 	FLOAT_TYPE * load, FLOAT_TYPE * supports, int * neighbors, FLOAT_TYPE * n_vects, FLOAT_TYPE * K, FLOAT_TYPE * C, FLOAT_TYPE * Mi,
 	FLOAT_TYPE * Kc, int n_els, int n_nds, int n_nodedofs, int stiffdim, FLOAT_TYPE t_load, FLOAT_TYPE t_max, int maxiter,
