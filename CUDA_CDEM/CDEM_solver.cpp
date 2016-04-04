@@ -69,7 +69,7 @@ int main(int argc, char** argv)
 		//std::cout << "Wrong number of arguments." << std::endl;
 		Domain dom = Domain();
 		dom.load_from_file("D:/Dropbox/VladimirVancik/CUDA/jobs/3pb_large_CUDA/3pb.txt");
-		dom.solve(0.03, 0.03, 100000, "D:/Dropbox/VladimirVancik/CUDA/jobs/3pb_large_CUDA/3pbo",5000,8,512);
+		dom.solve(0.03, 0.03, 100000, "D:/Dropbox/VladimirVancik/CUDA/jobs/3pb_large_CUDA/3pbo",5000,1,512);
 		//std::cout << dom.nodes[2998].v_disp << std::endl;
 	}
 	std::cout << "Calculation complete." << std::endl;

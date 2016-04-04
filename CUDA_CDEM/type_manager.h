@@ -1,8 +1,8 @@
 #pragma once
 
-#define FLOAT_TYPE float
+#define FLOAT_TYPE double
 // Toggle the type used for most floating point variables. Mostly switch float/double.
-#define EIGEN_SUFFIX f
+#define EIGEN_SUFFIX d
 // Toggle the type for matrix elements, float/double/...
 
 #define CONCAT(a,b) a##b

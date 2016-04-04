@@ -20,7 +20,6 @@ cudaError_t element_step_with_CUDA(FLOAT_TYPE * u, FLOAT_TYPE * v, FLOAT_TYPE * 
 	cudaEventCreate(&stop);
 	cudaEventRecord(start, 0);
 
-
 	cudaError_t cudaStatus;
 	// Choose which GPU to run on, change this on a multi-GPU system.
 	cudaStatus = cudaSetDevice(0);
@@ -168,7 +167,8 @@ __global__ void dof_step_kernel(FLOAT_TYPE * u, FLOAT_TYPE * v, FLOAT_TYPE * a, 
 			}
 		}
 		// Damping force:
-		FLOAT_TYPE F_c = -C[dofid] * v[dofid];
+		FLOAT_TYPE test = 1.0;
+		FLOAT_TYPE F_c = -C[dofid] * v[dofid] * test;
 		// Reaction force
 		FLOAT_TYPE F_r = supports[dofid] * (-F_k_e - F_k_c - F_c - loadfunc*load[dofid]);
 		a[dofid] = Mi[dofid] * (F_k_e + F_k_c + F_r + F_c + loadfunc*load[dofid]);
@@ -176,92 +176,6 @@ __global__ void dof_step_kernel(FLOAT_TYPE * u, FLOAT_TYPE * v, FLOAT_TYPE * a, 
 	}
 }
 
-__global__ void element_step_kernel(FLOAT_TYPE * u, FLOAT_TYPE * v, FLOAT_TYPE * a, FLOAT_TYPE * load, FLOAT_TYPE * supports, int * neighbors,
-	FLOAT_TYPE * n_vects, FLOAT_TYPE * K, FLOAT_TYPE * C, FLOAT_TYPE * Mi, FLOAT_TYPE * Kc, int n_els, int n_nds, int n_nodedofs, int stiffdim,
-	FLOAT_TYPE loadfunc)
-{
-	int eid = threadIdx.x + blockIdx.x * blockDim.x; // thread id - global number of dof
-
-	while (eid < n_els)
-	{
-		__shared__ FLOAT_TYPE K_sh[DATA_SIZE*DATA_SIZE];
-		__shared__ FLOAT_TYPE C_sh[DATA_SIZE*DATA_SIZE];
-		__shared__ FLOAT_TYPE Mi_sh[DATA_SIZE*DATA_SIZE];
-		__shared__ FLOAT_TYPE u_sh[DATA_SIZE];
-		__shared__ FLOAT_TYPE v_sh[DATA_SIZE];
-		__shared__ FLOAT_TYPE a_sh[DATA_SIZE];
-		__shared__ FLOAT_TYPE load_sh[DATA_SIZE];
-		__shared__ FLOAT_TYPE supports_sh[DATA_SIZE];
-		__shared__ FLOAT_TYPE n_vects_sh[2*DATA_SIZE];
-		__shared__ int neighbors_sh[DATA_SIZE];
-		for (int i = 0; i < stiffdim; i++)
-		{
-			for (int j = 0; j < stiffdim; j++)
-			{
-				K_sh[i + j*stiffdim] = K[eid*stiffdim*stiffdim + i + j*stiffdim];
-			}
-			C_sh[i] = C[eid*stiffdim + i];
-			Mi_sh[i] = Mi[eid*stiffdim + i];
-			u_sh[i] = u[eid*stiffdim + i];
-			v_sh[i] = v[eid*stiffdim + i];
-			a_sh[i] = a[eid*stiffdim + i];
-			load_sh[i] = load[eid*stiffdim + i];
-			supports_sh[i] = supports[eid*stiffdim + i];
-			neighbors_sh[i] = neighbors[eid*stiffdim + i];
-			n_vects_sh[2*i] = n_vects[eid*stiffdim + 2*i];
-			n_vects_sh[2*i+1] = n_vects[eid*stiffdim + 2*i+1];
-		}
-
-		FLOAT_TYPE kc11 = Kc[0];
-		FLOAT_TYPE kc21 = Kc[1];
-		FLOAT_TYPE kc12 = Kc[2];
-		FLOAT_TYPE kc22 = Kc[3];
-
-		// Element stiffness force:
-		FLOAT_TYPE F_k_e[DATA_SIZE];
-		ARRAY_INIT(F_k_e, DATA_SIZE)
-		for (int i = 0; i < stiffdim; i++)
-		{
-			for (int j = 0; j < stiffdim; j++)
-			{
-				F_k_e[i] += -K_sh[i+j*stiffdim] * u[j];
-			}
-		}
-		// Contact stiffness force:
-		FLOAT_TYPE F_k_c[DATA_SIZE];
-		ARRAY_INIT(F_k_c, DATA_SIZE)
-		for (int j = 0; j < 4; j++)
-		{
-			for (int i = 0; i < 2; i++)
-			{
-				int nbr = neighbors_sh[i];
-				if (nbr != 0)
-				{
-					FLOAT_TYPE t11 = n_vects_sh[2 * eid*stiffdim + 2 * i];
-					FLOAT_TYPE t12 = n_vects_sh[2 * eid*stiffdim + 2 * i + 1];
-					FLOAT_TYPE t21 = -t12;
-					FLOAT_TYPE t22 = t11;
-					FLOAT_TYPE du_x = u[(nbr - 1)*n_nodedofs] - u[nid];
-					FLOAT_TYPE du_y = u[(nbr - 1)*n_nodedofs + 1] - u[nid + 1];
-					if (dofid == nid) // X-component
-					{
-						F_k_c += du_x * (t11*(t11*kc11 + t21*kc21) + t21*(t11*kc12 + t21*kc22)) + du_y * (t12*(t11*kc11 + t21*kc21) + t22*(t11*kc12 + t21*kc22)); // T_T * Kc * T * du_g
-					}
-					else // Y-component
-					{
-						F_k_c += du_x * (t11*(t12*kc11 + t22*kc21) + t21*(t12*kc12 + t22*kc22)) + du_y * (t12*(t12*kc11 + t22*kc21) + t22*(t12*kc12 + t22*kc22)); // T_T * Kc * T * du_g
-					}
-				}
-			}
-		}
-		// Damping force:
-		FLOAT_TYPE F_c = -C[dofid] * v[dofid];
-		// Reaction force
-		FLOAT_TYPE F_r = supports[dofid] * (-F_k_e - F_k_c - F_c - loadfunc*load[dofid]);
-		a[dofid] = Mi[dofid] * (F_k_e + F_k_c + F_r + F_c + loadfunc*load[dofid]);
-		eid += gridDim.x * blockDim.x;
-	}
-}
 
 __global__ void memorize_and_increment(FLOAT_TYPE * u, FLOAT_TYPE * v, FLOAT_TYPE * a, FLOAT_TYPE * u_last, FLOAT_TYPE * v_last, int vdim, FLOAT_TYPE dt)
 {
@@ -271,7 +185,8 @@ __global__ void memorize_and_increment(FLOAT_TYPE * u, FLOAT_TYPE * v, FLOAT_TYP
 		u_last[dofid] = u[dofid];
 		u[dofid] += dt*v[dofid] + 0.5*dt*dt*a[dofid];
 		v_last[dofid] = v[dofid];
-		v[dofid] += dt*a[dofid];
+		FLOAT_TYPE test = 1.0;
+		v[dofid] += dt*a[dofid]*test;
 		dofid += gridDim.x * blockDim.x;
 	}
 }
@@ -282,7 +197,8 @@ __global__ void increment(FLOAT_TYPE * u, FLOAT_TYPE * v, FLOAT_TYPE * a, FLOAT_
 	while (dofid < vdim)
 	{
 		u[dofid] = u_last[dofid] + dt*v_last[dofid] + 0.5*dt*dt*a[dofid];
-		v[dofid] = v_last[dofid] + dt*a[dofid];
+		FLOAT_TYPE test = 1.0;
+		v[dofid] = v_last[dofid] + dt*a[dofid]*test;
 		dofid += gridDim.x * blockDim.x;
 	}
 }
