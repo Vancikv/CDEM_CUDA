@@ -54,21 +54,6 @@ cudaError_t element_step_with_CUDA(FLOAT_TYPE * u, FLOAT_TYPE * v, FLOAT_TYPE * 
 	for (i = 1; i <= maxiter; i++)
 	{
 		memorize_and_increment << <dimGrid, dimBlock >> >(dev_u, dev_v, dev_a, dev_u_last, dev_v_last, n_nodedofs*n_nds, dt);
-
-		if (i > 1) // Relaxation step
-		{
-			// cudaDeviceSynchronize waits for the kernel to finish, and returns
-			// any errors encountered during the launch.
-			CUDA_SYNCHRO(cudaStatus)
-
-			dof_step_kernel << < dimGrid, dimBlock >> > (dev_u, dev_v, dev_a, dev_load, dev_supports, dev_neighbors,
-				dev_n_vects, dev_K, dev_C, dev_Mi, dev_Kc, n_els, n_nds, n_nodedofs, stiffdim, load_function(dt*i / t_load));
-
-			CUDA_ERRORCHCK(cudaStatus)
-			CUDA_SYNCHRO(cudaStatus)
-
-			increment << <dimGrid, dimBlock >> >(dev_u, dev_v, dev_a, dev_u_last, dev_v_last, n_nodedofs*n_nds, dt);
-		}
 		CUDA_SYNCHRO(cudaStatus)
 
 		dof_step_kernel << < dimGrid, dimBlock >> > (dev_u, dev_v, dev_a, dev_load, dev_supports, dev_neighbors,
@@ -182,11 +167,12 @@ __global__ void memorize_and_increment(FLOAT_TYPE * u, FLOAT_TYPE * v, FLOAT_TYP
 	int dofid = threadIdx.x + blockIdx.x * blockDim.x; // thread id - global number of dof
 	while (dofid<vdim)
 	{
-		u_last[dofid] = u[dofid];
-		u[dofid] += dt*v[dofid] + 0.5*dt*dt*a[dofid];
-		v_last[dofid] = v[dofid];
-		FLOAT_TYPE test = 1.0;
-		v[dofid] += dt*a[dofid]*test;
+		FLOAT_TYPE buff = u[dofid];
+		u[dofid] = 2*dt*v[dofid] + u_last[dofid];
+		u_last[dofid] = buff;
+		buff = v[dofid];
+		v[dofid] = 2*dt*a[dofid] + v_last[dofid];
+		v_last[dofid] = buff;
 		dofid += gridDim.x * blockDim.x;
 	}
 }
@@ -197,8 +183,7 @@ __global__ void increment(FLOAT_TYPE * u, FLOAT_TYPE * v, FLOAT_TYPE * a, FLOAT_
 	while (dofid < vdim)
 	{
 		u[dofid] = u_last[dofid] + dt*v_last[dofid] + 0.5*dt*dt*a[dofid];
-		FLOAT_TYPE test = 1.0;
-		v[dofid] = v_last[dofid] + dt*a[dofid]*test;
+		v[dofid] = v_last[dofid] + dt*a[dofid];
 		dofid += gridDim.x * blockDim.x;
 	}
 }
